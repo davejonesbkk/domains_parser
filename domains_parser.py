@@ -1,46 +1,100 @@
-from urllib.parse import urlparse
-import csv
 
-#Create a list to store the completed blog post urls
-completed = []
-
-#open the completed blog post urls file
-orders_file = open('orders_dec15.txt', 'r')
-completed = [line for line in orders_file.readlines()]
-
-#store the completed urls in the list
-completed = list(map(str.strip, completed))
+from __future__ import print_function
+import httplib2
+import os, sys, io
 
 
-#create a dictionary for building the domains and prices
-mydict = {}
+from apiclient import discovery
+import oauth2client
+from oauth2client import client
+from oauth2client import tools
+from oauth2client.file import Storage
 
-#get the website domains and respective prive for each 
-with open('domains_prices.txt') as f:
-	for line in f:
-		#separate and then store in the dictionary
-		tok = line.split()
-		mydict[tok[0]] = tok[1]
+try:
+    import argparse
+    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
+except ImportError:
+    flags = None
+
+# If modifying these scopes, delete your previously saved credentials
+# at ~/.credentials/drive-python-quickstart.json
+SCOPES = 'https://www.googleapis.com/auth/drive'
+CLIENT_SECRET_FILE = 'client_secret.json'
+APPLICATION_NAME = 'DomainParser'
 
 
-#create a new file that will hold the completed blog posts urls and respective price
-fp = open('completed_orders_dec15.csv', 'w')
+def get_credentials():
+    """Gets valid user credentials from storage.
 
-#iterate over the completed post urls and get just the domain for each
-for i in completed:
-	x = urlparse(i)
-	y = (x.netloc)
+    If nothing has been stored, or if the stored credentials are invalid,
+    the OAuth2 flow is completed to obtain the new credentials.
 
-	#match the domain from the post urls to the domain and its price
-	for k,v in mydict.items():
-		k = urlparse(k)
-		k = (k.netloc)
+    Returns:
+        Credentials, the obtained credential.
+    """
+    home_dir = os.path.expanduser('~')
+    credential_dir = os.path.join(home_dir, '.credentials')
+    if not os.path.exists(credential_dir):
+        os.makedirs(credential_dir)
+    credential_path = os.path.join(credential_dir,
+                                   'drive-python-quickstart.json')
 
-		if k == y:
+    store = Storage(credential_path)
+    credentials = store.get()
+    if not credentials or credentials.invalid:
+        flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
+        flow.user_agent = APPLICATION_NAME
+        if flags:
+            credentials = tools.run_flow(flow, store, flags)
+        else: # Needed only for compatibility with Python 2.6
+            credentials = tools.run(flow, store)
+        print('Storing credentials to ' + credential_path)
+    return credentials
 
-			#save the completed post urls with its price to the new file
-			writer = csv.writer(fp, delimiter=',')
-			writer.writerow([i,v])
+def main():
+    """Shows basic usage of the Google Drive API.
+
+    Creates a Google Drive API service object and outputs the names and IDs
+    for up to 10 files.
+    """
+    credentials = get_credentials()
+    http = credentials.authorize(httplib2.Http())
+    DRIVE = discovery.build('drive', 'v3', http=http)
+
+ 
+    
+    page_token = None
+
+    while True:
+
+        results = DRIVE.files().list(q="mimeType='application/vnd.google-apps.spreadsheet'",
+                                        spaces='drive',
+                                        fields='nextPageToken, files(id, name)',
+                                        pageToken=page_token).execute()
+
+        for file in results.get('files', []):
+        
+            if file.get('id') == '1wFDMRyo-NUj5dNDnq1MAMD9CBZ-P8cdxJCha2J3vR5w':
+                print('Found file %s' % (file.get('name')))
+                my_file_id = file.get('id')
+                my_file_name = file.get('name')
+                print(my_file_id, my_file_name)
+        
+
+        request = DRIVE.files().export(fileId=my_file_id, mimeType=mimeType)
+        
+        fn = '%s.csv' % (my_file_name)
+        data = request.execute()
+        with open(fn, 'wb') as fh:
+            fh.write(data)
+        print('Finished')
+    
+
+
+
+
+if __name__ == '__main__':
+    main()
 
 
 
