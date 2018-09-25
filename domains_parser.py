@@ -1,101 +1,77 @@
 
-from __future__ import print_function
-import httplib2
-import os, sys, io
-
-
-from apiclient import discovery
-import oauth2client
-from oauth2client import client
-from oauth2client import tools
-from oauth2client.file import Storage
-
+import csv, math
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 try:
-    import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
+    from urllib.parse import urlparse
 except ImportError:
-    flags = None
+     from urlparse import urlparse
+import pandas as pd
+import numpy as np
 
-# If modifying these scopes, delete your previously saved credentials
-# at ~/.credentials/drive-python-quickstart.json
-SCOPES = 'https://www.googleapis.com/auth/drive'
-CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_NAME = 'DomainParser'
+gauth = GoogleAuth()
+gauth.LocalWebserverAuth() # Creates local webserver and auto handles authentication.
+
+drive = GoogleDrive(gauth)
+
+myfile = drive.CreateFile({'id': '1wFDMRyo-NUj5dNDnq1MAMD9CBZ-P8cdxJCha2J3vR5w'})
+
+myfile.GetContentFile('spm_orders.csv', mimetype='text/csv')
+
+#Create a list to store the completed blog post urls
+completed = []
+
+#open the completed blog post urls file
 
 
-def get_credentials():
-    """Gets valid user credentials from storage.
+df = pd.read_csv('spm_orders.csv')
+url_col = df['Live URL']
+for line in url_col:
+	completed.append(line)
 
-    If nothing has been stored, or if the stored credentials are invalid,
-    the OAuth2 flow is completed to obtain the new credentials.
 
-    Returns:
-        Credentials, the obtained credential.
-    """
-    home_dir = os.path.expanduser('~')
-    credential_dir = os.path.join(home_dir, '.credentials')
-    if not os.path.exists(credential_dir):
-        os.makedirs(credential_dir)
-    credential_path = os.path.join(credential_dir,
-                                   'drive-python-quickstart.json')
+completed_list = [ x for x in completed if str(x) != 'nan']
+print(completed_list)
 
-    store = Storage(credential_path)
-    credentials = store.get()
-    if not credentials or credentials.invalid:
-        flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
-        flow.user_agent = APPLICATION_NAME
-        if flags:
-            credentials = tools.run_flow(flow, store, flags)
-        else: # Needed only for compatibility with Python 2.6
-            credentials = tools.run(flow, store)
-        print('Storing credentials to ' + credential_path)
-    return credentials
-
-def main():
-    """Shows basic usage of the Google Drive API.
-
-    Creates a Google Drive API service object and outputs the names and IDs
-    for up to 10 files.
-    """
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
-    DRIVE = discovery.build('drive', 'v3', http=http)
-
- 
-    
-    page_token = None
-
-    while True:
-
-        results = DRIVE.files().list(q="mimeType='application/vnd.google-apps.spreadsheet'",
-                                        spaces='drive',
-                                        fields='nextPageToken, files(id, name)',
-                                        pageToken=page_token).execute()
-
-        for file in results.get('files', []):
-        
-            if file.get('id') == '1wFDMRyo-NUj5dNDnq1MAMD9CBZ-P8cdxJCha2J3vR5w':
-                print('Found file %s' % (file.get('name')))
-                my_file_id = file.get('id')
-                my_file_name = file.get('name')
-                print(my_file_id, my_file_name)
-        
-
-        request = DRIVE.files().export(fileId=my_file_id, mimeType=mimeType)
-        
-        fn = '%s.csv' % (my_file_name)
-        data = request.execute()
-        with open(fn, 'wb') as fh:
-            fh.write(data)
-        print('Finished')
-    
+#store the completed urls in the list
+completed_list = list(map(str.strip, completed_list))
 
 
 
 
-if __name__ == '__main__':
-    main()
+#create a dictionary for building the domains and prices
+domainsprices_dict = {}
 
+#get the website domains and respective prive for each 
+with open('domains_prices.txt') as f:
+	for line in f:
+		#separate and then store in the dictionary
+		tok = line.split()
+		domainsprices_dict[tok[0]] = tok[1]
+
+
+#create a new file that will hold the completed blog posts urls and respective price
+total_prices = 0
+with open('completed_orders_.csv', 'w') as fp:
+
+	#iterate over the completed post urls and get just the domain for each
+	for i in completed_list:
+		x = urlparse(i)
+		y = (x.netloc)
+
+		#match the domain from the post urls to the domain and its price
+		for k,v in domainsprices_dict.items():
+			k = urlparse(k)
+			k = (k.netloc)
+
+			if k == y:
+
+					#save the completed post urls with its price to the new file
+				writer = csv.writer(fp, delimiter=',')
+				writer.writerow([i,v])
+				
+				
+wf = pd.read_csv('completed_orders_.csv')
 
 
 
